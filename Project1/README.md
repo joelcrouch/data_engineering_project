@@ -31,12 +31,35 @@ gcloud compute instances create course-vm \
   --machine-type=e2-medium
 ```
 
-The second way it to use the GCP gui(the web console on GCP). Here are the steps to do that:
+The second way it to use the GCP gui(the web console on GCP). Here are the steps to do that:  Click on the 'create instance' button.  Use the defaults generally, but change the type to 'e2-medium' and use the region: "us-west 1-b'.  When the machine spins up, click on the 'SSH' button.  Run: 
+```
+bash
+sudo apt update
+sudo apt upgrade -y
+```
+
+Then you may have to install curl.
+run: 
+```
+bash
+curl --version
+```
+If it returns a version, then your are good, otherwise run "sudo apt install curl".
+Check to see if you have access to the trimet server:
+```
+bash
+curl -L https://busdata.cs.pdx.edu/api/getBreadCrumbs?vehicle_id=<vehicle_id> --output <output_file_name>
+
+```
+
+You should see the data from your vehicle(vehicle_id) in the output file.
+
 
 
 
 ##### Develop a simple python program to gather the data programmatically. 
  The data will probably be a bunch of data.  You will have to parse out the relevant data, grab the correct data, and then in a for-loop apply the function that will extract the correct and verified data. In a nutshell: get the data for each vehicle:'https://busdata.cs.pdx.edu/api/getBreadCrumbs?vehicle_id=<vehicle_id>'. So figure out what is in there.  Each vehicle will have some 'extra' data in there. Add each vehicle's data to a data structure.  Loop through each vehicles, data, and make a smaller more useful structure, then loop through and grab what you want.  Make it into a chart, possibly in a Jupyter notebook.
+ Idea:  Use jsonify to access data, and make a list.  The 'object' name will be vehicle_id and then one may access it's attributes like this: vehicle_id.fieldname1, and vehicle_id.fieldname2. 
 Testing: Make a dummy set of data, make sure you are getting what you think. For example, if the vehicle data includes vehicleId, dest, src, timeCurrent, ETANextStop, TimeLastStopAndStopID, routeId. You might only want vehicleId and timeCurrent and TimeLastStopAndStopId, and stopInfo(array of data) First you might need to store all the data(?), and then parse out the vehicleId and TimeLastStopAndStopId and stopInfo.  Grab the busId and location and stopInfo and figure out what the stop is.  This data will probably be in JSON format, so you will have to use jsonify.
 This is what the bus_dictionary will look like:
 ```
@@ -56,6 +79,36 @@ Figure out the topic and subscription.  See Wu-Chang's lecture on subscription.
 
 #### Enhance your data gathering client to parse the breadcrumb data and publish individual JSON records.
 See the description of the script above.
+
+#### START/STOP VM
+
+After you have a vm up and running, we want to add some automatic start/stop for the VM, and then we will use chron to schedule our jobs.
+
+From the 'compute engine' page on GCP, you should see a tab called 'instance schedule'.   Click on that.
+![Alt text](<Screenshot 2024-04-18 110502.png>)
+
+There will be a new window opened. Click on the 'create schedule' button.
+![Alt text](create-schedulebutton.png)
+
+A wizard will open up. Fill it out.
+![Alt text](actualschedulecreation.png)
+
+Make sure the start/stop times are generous.  It may take up to 15 minutes for the VM to turn on.
+Once you have created the schedule, you just need to add your VM instance to the schedule.
+So click on the schedule. You may have to refresh the page to  see it.  This windown will open.
+![Alt text](addvm.png)
+Click on the 'add instances to schedule' button.
+Choose the appropriate VM and add it to the schedule.  You will probably get this error: 
+![Alt text](adderror.png)
+No problem.  Lets add some roles.  Search for "IAM" in the GCP search bar, open that window.
+Click on the "Include Google-provided role grants" check box, otherwise this particular account wont be visible
+Go to 'roles' and click on the button to create a role. I used 'start-stop-vm" as the name. A wizard will open. Fill it out and add the required permissions from the error.
+![Alt text](createrole.png)
+
+Once it has been created, go back to the IAM splash page, and click on the 'pen' icon on the left of the desired account.  A new wizard will open up.  Add your newly created role.
+
+Then go back to 'compute engine' find your schedule, and add the right VM to your schedule.  Voila!
+
 
 
 REFERENCES:
