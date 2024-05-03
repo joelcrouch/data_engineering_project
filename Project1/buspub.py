@@ -4,41 +4,27 @@ import os
 import subprocess
 from datetime import datetime
 
-# Function to fetch data for a vehicle ID and save it to a file
-def fetch_data_and_save(vehicle_id):
+# Function to fetch and return data for a vehicle ID 
+def fetch_bus_data(vehicle_id):
     # Fetch JSON data using curl command
     curl_command = f'curl https://busdata.cs.pdx.edu/api/getBreadCrumbs?vehicle_id={vehicle_id}'
     json_data = subprocess.check_output(curl_command, shell=True, text=True)
 
-    # Get current date and time
-    current_date = datetime.now().strftime("%Y-%m-%d")
-    current_time = datetime.now().strftime("%H-%M-%S")
-
-    # Create directory for the current date if it doesn't exist
-    directory_name = f"{current_date}"
-    try:
-        os.makedirs(directory_name)
-    except FileExistsError:
-        pass
-
-    # Save the JSON data to a file within the directory
-    file_name = f"{directory_name}/time_and_date_{vehicle_id}_{current_time}.json"
-    with open(file_name, "w") as file:
-        file.write(json_data)
-
-    return file_name
+    return json_data
 
 # Function to publish fetched data to Pub/Sub
 def publish_data(data, publisher, topic_path):
+    count = 0
     # Iterate over each record in the JSON data
     for record in data:
         # Convert the record to a JSON string
         record_str = json.dumps(record)
         # Publish the JSON string as a message to Pub/Sub
         future = publisher.publish(topic_path, record_str.encode("utf-8"))
-        print(f"Published message: {future.result()}")
+        if future:
+            count += 1
 
-    print("Published messages.")
+    print(f"Published ${count} messages.")
 
 project_id = "data-engineering-spring-2024"
 topic_id = "my-topic"
@@ -56,11 +42,8 @@ vehicle_ids = [
 
 # Iterate over each vehicle ID
 for vehicle_id in vehicle_ids:
-    # Fetch data for the vehicle ID and save it to a file
-    file_name = fetch_data_and_save(vehicle_id)
-    print(f"Data fetched and saved to {file_name}")
+    # Fetch data for the vehicle ID
+    bus_data = fetch_bus_data(vehicle_id)
 
     # Publish the fetched data to Pub/Sub
-    with open(file_name, "r") as file:
-        data = json.load(file)
-    publish_data(data, publisher, topic_path)
+    publish_data(bus_data, publisher, topic_path)

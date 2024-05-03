@@ -26,9 +26,6 @@ def callback(message: pubsub_v1.subscriber.message.Message) -> None:
         # Parse the received JSON data
         data = json.loads(message.data)
 
-        # Print received data
-        print(f"Received message:\n{json.dumps(data, indent=4)}")
-
         # Get current date and time
         current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
