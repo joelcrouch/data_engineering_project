@@ -7,7 +7,7 @@ python3 -m venv env
 source env/bin/activate
 pip install google-cloud-storage
 
-python3 publisher.py
+#python3 publisher.py
 
 #sleep 30
 python3 reciever.py
