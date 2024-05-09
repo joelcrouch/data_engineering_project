@@ -30,9 +30,13 @@ def callback(message: pubsub_v1.subscriber.message.Message) -> None:
         current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
         # Save received data to a file
-        file_name = os.path.join(receiver_data_dir, f"data_{current_datetime}.json")
-        with open(file_name, "w") as file:
-            json.dump(data, file, indent=4)
+        # file_name = os.path.join(receiver_data_dir, f"data_{current_datetime}.json")
+        # with open(file_name, "w") as file:
+        #     json.dump(data, file, indent=4)
+        file_name = os.path.join(receiver_data_dir, f"data_{current_date}.json")
+        with open(file_name, "a") as file:  # Append mode to append to the file
+            json.dump(data, file)
+            file.write("\n")  # Add a newline between each record
 
         # Acknowledge the message
         message.ack()
@@ -56,3 +60,4 @@ with subscriber:
     except TimeoutError:
         streaming_pull_future.cancel()  # Trigger the shutdown
         streaming_pull_future.result()  # Block until the shutdown is complete
+
