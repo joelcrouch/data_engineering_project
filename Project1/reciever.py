@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from concurrent.futures import TimeoutError
 from google.cloud import pubsub_v1
-
+import psycopg2
 # Define the project ID and subscription ID
 project_id = "data-engineering-spring-2024"
 subscription_id = "my-sub"
@@ -25,7 +25,39 @@ def callback(message: pubsub_v1.subscriber.message.Message) -> None:
     try:
         # Parse the received JSON data
         data = json.loads(message.data)
+        
+        
+        #connect ot database
+        
+        # validate& transform data data
+        
+        
+        
+        
+        
+        # # Assertion 1: Ensure 'tstamp' exists in the data
+        # assert 'tstamp' in data, "Missing 'tstamp' field in received data."
 
+        # # Assertion 2: Validate 'latitude' limit
+        # assert -90 <= data['latitude'] <= 90, "Latitude value is out of range."
+
+        # # Assertion 3: Validate 'longitude' limit
+        # assert -180 <= data['longitude'] <= 180, "Longitude value is out of range."
+
+        # # Assertion 4: Ensure 'speed' is non-negative
+        # assert data['speed'] >= 0, "Speed value cannot be negative."
+
+        # # Assertion 5: Ensure 'trip_id' exists in the data
+        # assert 'trip_id' in data, "Missing 'trip_id' field in received data."
+
+        # # Assertion 6: Ensure 'vehicle_id' exists in the data
+        # assert 'vehicle_id' in data, "Missing 'vehicle_id' field in received data."
+
+        # # Query the database for unique tstamp for the given vehicle_id, latitude, and longitude
+        # unique_tstamp = query_database_for_unique_tstamp(data['vehicle_id'], data['latitude'], data['longitude'])
+
+        # # Assertion 7: Check if unique tstamp exists
+        # assert unique_tstamp is None or unique_tstamp == data['tstamp'], "Duplicate tstamp for vehicle at the same location."
         # Get current date and time
         current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
