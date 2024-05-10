@@ -7,6 +7,7 @@ python3 -m venv env
 source env/bin/activate
 pip install google-cloud-storage
 pip install google-cloud-pubsub
+pip3 install psycopg2-binary
 pip install psycopg2
 
 #python3 publisher.py
