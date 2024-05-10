@@ -5,6 +5,7 @@ from datetime import datetime
 from concurrent.futures import TimeoutError
 from google.cloud import pubsub_v1
 import psycopg2
+
 # Define the project ID and subscription ID
 project_id = "data-engineering-spring-2024"
 subscription_id = "my-sub"
@@ -35,7 +36,7 @@ def callback(message: pubsub_v1.subscriber.message.Message) -> None:
             password="1234",
             host="localhost"  # Or your PostgreSQL server's IP address
         )
-
+        print("Connected to PostgreSQL")
         # validate& transform data data
         
         
@@ -79,9 +80,15 @@ def callback(message: pubsub_v1.subscriber.message.Message) -> None:
 
         # Acknowledge the message
         message.ack()
+    except psycopg2.Error as e:
+        print("Error connecting to PostgreSQL:", e)
     except json.JSONDecodeError:
         print("Failed to decode JSON data\n")
-
+    finally:
+        # Close the database connection
+        if conn is not None:
+            conn.close()
+            print("Connection closed")
 # Create a Pub/Sub subscriber
 subscriber = pubsub_v1.SubscriberClient()
 
