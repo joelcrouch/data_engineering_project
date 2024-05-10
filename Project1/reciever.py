@@ -28,7 +28,14 @@ def callback(message: pubsub_v1.subscriber.message.Message) -> None:
         
         
         #connect ot database
-        
+        # Establish connection to PostgreSQL database
+        conn = psycopg2.connect(
+            dbname="postgres",
+            user="postgres",
+            password="1234",
+            host="localhost"  # Or your PostgreSQL server's IP address
+        )
+
         # validate& transform data data
         
         
