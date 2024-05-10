@@ -67,7 +67,7 @@ def callback(message: pubsub_v1.subscriber.message.Message) -> None:
         # # Assertion 7: Check if unique tstamp exists
         # assert unique_tstamp is None or unique_tstamp == data['tstamp'], "Duplicate tstamp for vehicle at the same location."
         # Get current date and time
-        current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        current_date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
         # Save received data to a file
         # file_name = os.path.join(receiver_data_dir, f"data_{current_datetime}.json")
