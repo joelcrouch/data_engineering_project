@@ -18,6 +18,8 @@ vehicle_ids = [
     4212, 3802, 3249, 3507, 4234, 4227, 2938, 3929, 4036, 2907, 3007, 4528, 4237, 3131, 4052, 3616, 3959, 3634, 3328, 3264, 3218, 2916, 2920, 3748, 4205, 4001, 2903, 3624, 3631, 3110, 2908, 4202, 3031, 3518, 3226, 3022, 3262, 2936, 3626, 3525, 3245, 3615, 3720, 3201, 3153, 3958, 3932, 3253, 3324, 2930, 3921, 3543, 3524, 3223, 3010, 3001, 4020, 3318, 3241, 3509, 3718, 3647, 3123, 3267, 3413, 3157, 3639, 3213, 4010, 3515, 2902, 3151, 2918, 3013, 4529, 3122, 3027, 4024, 3221, 3549, 3136, 3142, 3158, 3404, 3236, 4216, 3202, 3711, 3502, 3015, 3134, 3713, 3531, 3127, 3619, 4209, 4207, 3163, 3629, 3736
 ]
 
+columns_to_keep = ['PDX_TRIP', 'route_number', 'vehicle_number', 'service_key', 'direction']
+
 # Get the current date
 current_date = datetime.now().strftime("%m-%d")
 
@@ -57,7 +59,7 @@ for vehicle_id in vehicle_ids:
            # and change the above 
             # Add a column for the trip number
             df['PDX_TRIP'] = trip_number
-            
+            df = df[columns_to_keep]
             # Append DataFrame to data list
             data.append(df)
         if data:
@@ -85,6 +87,10 @@ directory = f"stop_event_data/{current_date}"
 if not os.path.exists(directory):
     os.makedirs(directory)
 pd.set_option('display.max_columns', None)  # Display all columns
+print("\nColumns in naive df\n")
+list(combined_df.columns)
+
+
 print(combined_df)
 # Define the file path
 csv_file_path = f"{directory}/combined_data.csv"
@@ -95,6 +101,16 @@ combined_df.to_json(json_file_path, orient='records')
 json_file_path = f"{directory}/combined_data.json"
 print(f"DataFrames saved to: {csv_file_path} and {json_file_path}")
 
+'''
+columns_to_keep = ['PDX_TRIP', 'route_number', 'vehicle_number', 'service_key', 'direction']
+final_df = combined_df[columns_to_keep]
+
+# Print both DataFrames to verify
+print("combined_df:")
+print(combined_df)
+print("\nfinal_df:")
+print(final_df)
+'''
 # Read the JSON file and publish each line as a message to Pub/Sub
 #TOO big try to do it wihtin the loop
 #with open(json_file_path, 'r') as f:
