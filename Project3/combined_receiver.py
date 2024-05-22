@@ -8,10 +8,6 @@ from datetime import datetime, timedelta
 import os
 import json
 import pandas as pd
-'''
-project_id = "dataeng-spring-2024"
-subscriptions = {"my-sub": "bus_data", "bus-stop-sub": "stop_data"}
-'''
 DBname = "postgres"
 DBuser = "postgres"
 DBpwd = "1234"
@@ -21,11 +17,6 @@ project_id = "data-engineering-spring-2024"
 #project_id = "dataeng-spring-2024"
 subscription_id_1 = "my-sub"
 subscription_id_2 = "bus-stop-sub"
-'''
-DBname = "postgres"
-DBuser = "postgres"
-DBpwd = "smriti"
-'''
 subscriber = pubsub_v1.SubscriberClient()
 
 subscription_path_1 = subscriber.subscription_path(project_id, subscription_id_1)
@@ -68,6 +59,16 @@ bus_data = pd.DataFrame(bus_data_list)
 stop_data = pd.DataFrame(stop_data_list)
 print(bus_data)
 print(stop_data)
+stop_data.rename(columns={'PDX_TRIP': 'trip_id',
+                         'route_number': 'route_id',
+                         'vehicle_number': 'vehicle_id',
+                         'service_key': 'service_key',
+                         'direction': 'direction'}, inplace=True)
+# Print the DataFrame with renamed columns
+print(bus_data)
+
+
+print(stop_data)
 
 # Get the current date
 current_date = datetime.now().strftime('%d-%m')
@@ -91,96 +92,7 @@ stop_data.to_json(stop_data_file, index=False)
 
 print(f"Data saved to {bus_data_file} and {stop_data_file}")
 
-
-
-'''
-subscriber = pubsub_v1.SubscriberClient()
-
-message_lists = {}
-
-# Define callback function
-def callback(message: pubsub_v1.subscriber.message.Message, subscription_name: str) -> None:
-    response_message = json.loads(message.data.decode('utf-8'))
-    message_lists[subscription_name].append(response_message)
-    print(f"Receiving message from {subscription_name}.....")
-    message.ack()
-
-
-streaming_pull_futures = []
-for subscription, data_name in subscriptions.items():
-    subscription_path = subscriber.subscription_path(project_id, subscription)
-    message_lists[data_name] = []
-    streaming_pull_future = subscriber.subscribe(subscription_path, callback=callback, callback_kwargs={'subscription': subscription})    
-#streaming_pull_future = subscriber.subscribe(subscription_path, callback=callback, args=(subscription,))
-    streaming_pull_futures.append(streaming_pull_future)
-with subscriber:
-    try:
-        for streaming_pull_future in streaming_pull_futures:
-            streaming_pull_future.result(timeout=40.0)
-    except TimeoutError:
-        for streaming_pull_future in streaming_pull_futures:
-            streaming_pull_future.cancel()
-            streaming_pull_future.result()
-
-# Process messages
-for data_name, message_list in message_lists.items():
-    df = pd.DataFrame(message_list)
-
-print(bus_data)
-print(stop_data)
-
-'''
-
-
-'''
-##################################################################2orksto print df
-from io import StringIO
-import psycopg2
-from concurrent.futures import TimeoutError
-from google.cloud import pubsub_v1
-from datetime import datetime, timedelta
-import os
-import json
-import pandas as pd
-
-project_id = "data-engineering-spring-2024"
-#project_id = "dataeng-spring-2024"
-subscription_id = "bus-stop-sub"
-
-DBname = "postgres"
-DBuser = "postgres"
-DBpwd = "smriti"
-
-subscriber = pubsub_v1.SubscriberClient()
-
-subscription_path = subscriber.subscription_path(project_id, subscription_id)
-message_list = []
-
-def callback(message: pubsub_v1.subscriber.message.Message) -> None:
-    response_message = json.loads(message.data.decode('utf-8'))
-    message_list.append(response_message)
-    print("Receving message.....")
-    message.ack()
-
-streaming_pull_future = subscriber.subscribe(
-    subscription_path, callback=callback)
-
-print(f"Listening for messages on {subscription_path}..\n")
-
-with subscriber:
-    try:
-        streaming_pull_future.result(timeout=40.0)
-    except TimeoutError:
-        streaming_pull_future.cancel()
-        streaming_pull_future.result()
-
-
-df = pd.DataFrame(message_list)
-print(df)
-#################################################################works from above
-'''
-
-df = bus_data.rename("df")
+df = bus_data
 
 def validate_data(df):
     # Assert 'TIMESTAMP' column exists
@@ -258,12 +170,20 @@ df['GPS_LONGITUDE'] = df['GPS_LONGITUDE'].fillna(0.0)
 
 validate_data(df)
 
+def validate_stop_data(df):
+    #rm dups
+    df.drop_duplicates(inplace=True)
+
+validate_stop_data(stop_data)
+
+print(stop_data)
+
 # Add dummy columns with default value
 #result_df['ROUTE_ID'] = 0
 #result_df['DIRECTION'] = 'Undefined'
 
 # Select only required columns and rename them
-df_trip = stop_data.rename("df_trip")
+df_trip = stop_data
 #result_df[['EVENT_NO_TRIP', 'ROUTE_ID', 'VEHICLE_ID', 'DAY_NAME', 'DIRECTION']].rename(    columns={'EVENT_NO_TRIP': 'trip_id', 'ROUTE_ID': 'route_id', 'VEHICLE_ID': 'vehicle_id', 'DAY_NAME': 'service_key', 'DIRECTION': 'direction'})
 # Select only required columns and rename them
 df_breadcrumb = df[['TIMESTAMP', 'GPS_LATITUDE', 'GPS_LONGITUDE', 'SPEED', 'EVENT_NO_TRIP']].rename(
@@ -285,6 +205,46 @@ conn = psycopg2.connect(
     user=DBuser,
     password=DBpwd
     )
+
+cursor=conn.cursor()
+
+create_trip_table = """
+CREATE TABLE IF NOT EXISTS trip (
+    trip_id VARCHAR(255),
+    route_id INTEGER,
+    vehicle_id VARCHAR(255),
+    service_key VARCHAR(255),
+    direction VARCHAR(255)
+);
+"""
+
+create_breadcrumb_table = """
+CREATE TABLE IF NOT EXISTS breadcrumb (
+    tstamp TIMESTAMP,
+    latitude FLOAT,
+    longitude FLOAT,
+    speed FLOAT,
+    day_of_week VARCHAR(255),
+    day_type VARCHAR(255)
+    trip_id VARCHAR(255),
+    FOREIGN KEY (trip_id) REFERENCES trip (trip_id)
+);
+"""
+
+def create_tables(conn):
+    cursor = conn.cursor()
+    try:
+        cursor.execute(create_trip_table)
+        cursor.execute(create_breadcrumb_table)
+        conn.commit()
+        print("Tables created successfully.")
+    except (Exception, psycopg2.DatabaseError) as error:
+        print("Error creating tables: %s" % error)
+        conn.rollback()
+    finally:
+        cursor.close()
+
+create_tables(conn)
 
 def copy_from_trip(conn, df):
     buffer = StringIO()
