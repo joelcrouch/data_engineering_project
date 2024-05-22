@@ -169,20 +169,7 @@ CREATE TABLE IF NOT EXISTS breadcrumb (
     FOREIGN KEY (trip_id) REFERENCES trip (trip_id)
 );
 """
-'''
-try:
-    cursor.execute(create_trip_table)
-    cursor.execute(create_breadcrumb_table)
-    conn.commit()
-    print("Tables created successfully.")
-except Exception as e:
-    print(f"Error creating tables: {e}")
-    conn.rollback()
-finally:
-    cursor.close()
-    conn.close()
 
-'''
 def create_tables(conn):
     cursor = conn.cursor()
     try:
