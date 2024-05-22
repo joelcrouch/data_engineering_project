@@ -6,13 +6,12 @@ from datetime import datetime, timedelta
 import os
 import json
 import pandas as pd
-
-project_id = "dataeng-spring-2024"
+project_id = "data-engineering-spring-2024"
 subscription_id = "my-sub"
 
 DBname = "postgres"
 DBuser = "postgres"
-DBpwd = "smriti"
+DBpwd = "1234"
 
 subscriber = pubsub_v1.SubscriberClient()
 
@@ -39,6 +38,9 @@ with subscriber:
 
 
 df = pd.DataFrame(message_list)
+
+print("\n\nerror finder\n\n")
+print(df)
 
 def validate_data(df):
     # Assert 'TIMESTAMP' column exists
@@ -144,7 +146,58 @@ conn = psycopg2.connect(
     user=DBuser,
     password=DBpwd
     )
+#############################################################
+cursor=conn.cursor()
 
+create_trip_table = """
+CREATE TABLE IF NOT EXISTS trip (
+    trip_id VARCHAR(255) PRIMARY KEY,
+    route_id INTEGER,
+    vehicle_id VARCHAR(255),
+    service_key VARCHAR(255),
+    direction VARCHAR(255)
+);
+"""
+
+create_breadcrumb_table = """
+CREATE TABLE IF NOT EXISTS breadcrumb (
+    tstamp TIMESTAMP,
+    latitude FLOAT,
+    longitude FLOAT,
+    speed FLOAT,
+    trip_id VARCHAR(255),
+    FOREIGN KEY (trip_id) REFERENCES trip (trip_id)
+);
+"""
+'''
+try:
+    cursor.execute(create_trip_table)
+    cursor.execute(create_breadcrumb_table)
+    conn.commit()
+    print("Tables created successfully.")
+except Exception as e:
+    print(f"Error creating tables: {e}")
+    conn.rollback()
+finally:
+    cursor.close()
+    conn.close()
+
+'''
+def create_tables(conn):
+    cursor = conn.cursor()
+    try:
+        cursor.execute(create_trip_table)
+        cursor.execute(create_breadcrumb_table)
+        conn.commit()
+        print("Tables created successfully.")
+    except (Exception, psycopg2.DatabaseError) as error:
+        print("Error creating tables: %s" % error)
+        conn.rollback()
+    finally:
+        cursor.close()
+
+create_tables(conn)
+#############################################################
 def copy_from_trip(conn, df):
     buffer = StringIO()
     df.to_csv(buffer, index=False, header=False)
