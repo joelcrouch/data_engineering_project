@@ -84,11 +84,13 @@ os.makedirs(bus_data_dir, exist_ok=True)
 os.makedirs(stop_data_dir, exist_ok=True)
 
 # Save DataFrames to CSV files
-bus_data_file = os.path.join(bus_data_dir, "bus_data.csv")
-stop_data_file = os.path.join(stop_data_dir, "stop_data.csv")
+bus_data_file = os.path.join(bus_data_dir, "bus_data.json")
+stop_data_file = os.path.join(stop_data_dir, "stop_data.json")
 
-bus_data.to_json(bus_data_file, index=False)
-stop_data.to_json(stop_data_file, index=False)
+bus_data.to_json(bus_data_file, orient='records', lines=True, index=False)
+stop_data.to_json(stop_data_file, orient='records', lines=True,  index=False)
+
+
 
 print(f"Data saved to {bus_data_file} and {stop_data_file}")
 
@@ -183,8 +185,8 @@ stop_data=validate_stop_data(stop_data)
 print(stop_data)
 
 # Add dummy columns with default value
-#result_df['ROUTE_ID'] = 0
-#result_df['DIRECTION'] = 'Undefined'
+result_df['ROUTE_ID'] = 0
+result_df['DIRECTION'] = 'Undefined'
 
 # Select only required columns and rename them
 df_trip = stop_data
@@ -238,7 +240,7 @@ def create_tables(conn):
     cursor = conn.cursor()
     try:
         cursor.execute(create_trip_table)
-#        cursor.execute(create_breadcrumb_table)
+        cursor.execute(create_breadcrumb_table)
         conn.commit()
         print("Tables created successfully.")
     except (Exception, psycopg2.DatabaseError) as error:
@@ -287,4 +289,4 @@ def copy_from_breadcrumb(conn, df):
     cursor.close()
 
 copy_from_trip(conn, df_trip)
-#copy_from_breadcrumb(conn, df_breadcrumb)
+copy_from_breadcrumb(conn, df_breadcrumb)
