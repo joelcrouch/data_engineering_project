@@ -172,9 +172,13 @@ validate_data(df)
 
 def validate_stop_data(df):
     #rm dups
-    df.drop_duplicates(inplace=True)
+   # df.drop_duplicates(inplace=True)
+    # Remove duplicates while keeping the first occurrence of each trip_id
+    df = df.sort_values(by='trip_id').drop_duplicates(subset='trip_id', keep='first')
+    df = df.reset_index(drop=True)
+    return df
 
-validate_stop_data(stop_data)
+stop_data=validate_stop_data(stop_data)
 
 print(stop_data)
 
@@ -192,10 +196,10 @@ df_breadcrumb = df[['TIMESTAMP', 'GPS_LATITUDE', 'GPS_LONGITUDE', 'SPEED', 'EVEN
 # Assuming you have a DataFrame called df with columns: 'TIMESTAMP', 'SPEED', and 'VEHICLE_ID'
 
 # Create a new column for the day of the week
-df_breadcrumb['DAY_OF_WEEK'] = df['TIMESTAMP'].dt.dayofweek
+df_breadcrumb['day_of_week'] = df['TIMESTAMP'].dt.dayofweek
 
 # Map day of the week to 'Weekday' or 'Weekend'
-df_breadcrumb['DAY_TYPE'] = df['DAY_OF_WEEK'].map({0: 'Weekend', 1: 'Weekday', 2: 'Weekday', 3: 'Weekday', 4: 'Weekday', 5: 'Weekday', 6: 'Weekend'})
+df_breadcrumb['day_type'] = df['DAY_OF_WEEK'].map({0: 'Weekend', 1: 'Weekday', 2: 'Weekday', 3: 'Weekday', 4: 'Weekday', 5: 'Weekday', 6: 'Weekend'})
 
 
 # Establish a connection to the database
@@ -210,7 +214,7 @@ cursor=conn.cursor()
 
 create_trip_table = """
 CREATE TABLE IF NOT EXISTS trip (
-    trip_id VARCHAR(255),
+    trip_id VARCHAR(255) PRIMARY KEY,
     route_id INTEGER,
     vehicle_id VARCHAR(255),
     service_key VARCHAR(255),
@@ -225,9 +229,8 @@ CREATE TABLE IF NOT EXISTS breadcrumb (
     longitude FLOAT,
     speed FLOAT,
     day_of_week VARCHAR(255),
-    day_type VARCHAR(255)
+    day_type VARCHAR(255),
     trip_id VARCHAR(255),
-    FOREIGN KEY (trip_id) REFERENCES trip (trip_id)
 );
 """
 
@@ -235,7 +238,7 @@ def create_tables(conn):
     cursor = conn.cursor()
     try:
         cursor.execute(create_trip_table)
-        cursor.execute(create_breadcrumb_table)
+#        cursor.execute(create_breadcrumb_table)
         conn.commit()
         print("Tables created successfully.")
     except (Exception, psycopg2.DatabaseError) as error:
@@ -284,4 +287,4 @@ def copy_from_breadcrumb(conn, df):
     cursor.close()
 
 copy_from_trip(conn, df_trip)
-copy_from_breadcrumb(conn, df_breadcrumb)
+#copy_from_breadcrumb(conn, df_breadcrumb)
