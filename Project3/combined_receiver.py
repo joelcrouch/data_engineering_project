@@ -1,5 +1,3 @@
-
-
 from io import StringIO
 import psycopg2
 from concurrent.futures import TimeoutError
@@ -8,10 +6,11 @@ from datetime import datetime, timedelta
 import os
 import json
 import pandas as pd
+from dateutil import parser
+
 DBname = "postgres"
 DBuser = "postgres"
 DBpwd = "1234"
-
 
 project_id = "data-engineering-spring-2024"
 #project_id = "dataeng-spring-2024"
@@ -94,114 +93,90 @@ stop_data.to_json(stop_data_file, orient='records', lines=True,  index=False)
 
 print(f"Data saved to {bus_data_file} and {stop_data_file}")
 
-df = bus_data
+pd.options.display.max_columns = None
+#bus_data= pd.read_json('bus3736.json')
+#print(bus_data)
 
-def validate_data(df):
-    # Assert 'TIMESTAMP' column exists
-    if 'TIMESTAMP' in df.columns:
-        print("Missing 'TIMESTAMP' field in received data.")
-
-    # Assert 'latitude' values are within the valid range
-    if ((df['GPS_LATITUDE'] >= -90) & (df['GPS_LATITUDE'] <= 90)).all():
-        print("Latitude value is out of range.")
-
-    # Assert 'longitude' values are within the valid range
-    if((df['GPS_LONGITUDE'] >= -180) & (df['GPS_LONGITUDE'] <= 180)).all():
-        print("Longitude value is out of range.")
-
-    # Assertion 4: Ensure 'SPEED' is non-negative
-    if(df['SPEED'] >= 0).all():
-        print("Speed value cannot be negative.")
-
-    # Assertion 5: Ensure 'trip_id' exists in the data
-    if 'EVENT_NO_TRIP' in df.columns:
-        print("Missing 'EVENT_NO_TRIP' field in received data.")
-
-    # Assertion 6: Ensure 'vehicle_id' exists in the data
-    if 'VEHICLE_ID' in df.columns:
-        print("Missing 'VEHICLE_ID' field in received data.")
-    # Assertion 7: Ensure 'EVENT_NO_TRIP' column doesn't contain null values
-    if not df['EVENT_NO_TRIP'].isnull().any():
-        print("'EVENT_NO_TRIP' column contains null values.")
-
-    # Assertion 8 Ensure 'VEHICLE_ID' column doesn't contain null values
-    if not df['VEHICLE_ID'].isnull().any():
-        print("'VEHICLE_ID' column contains null values.")
-    
-    #10
-    #assert not df.isnull().values.any(), "DataFrame contains missing values."
-    if not df.duplicated(subset=['TIMESTAMP']).any():
-        print("Duplicate timestamps found in the DataFrame.")
+bus_data.drop_duplicates(inplace=True)
+print(bus_data)
 
 
-df['DATE_UPDATED'] = pd.to_datetime(df['OPD_DATE'], format='%d%b%Y:%H:%M:%S')
-
-# Extract day of the week
-df['DAY_OF_WEEK'] = df['DATE_UPDATED'].dt.dayofweek
-
-# Map day of the week to name
-name_of_days = {0: 'Weekday', 1: 'Weekday', 2: 'Weekday', 3: 'Weekday', 4: 'Weekday', 5: 'Saturday', 6: 'Sunday'}
-df['DAY_NAME'] = df['DAY_OF_WEEK'].map(name_of_days)
-
-result_df = df.drop_duplicates(subset=['EVENT_NO_TRIP'], keep='first')
-    
-# Define function to create timestamp
 def create_timestamp(row):
     opd_date = datetime.strptime(row['OPD_DATE'], '%d%b%Y:%H:%M:%S')
     act_time = timedelta(seconds=row['ACT_TIME'])
     timestamp = opd_date + act_time
     return pd.Timestamp(timestamp)
 
-# Apply the function to create the TIMESTAMP column
-df['TIMESTAMP'] = df.apply(create_timestamp, axis=1)
+bus_data['TIMESTAMP'] = bus_data.apply(create_timestamp, axis=1)
+bus_data['DATE_UPDATED'] = pd.to_datetime(bus_data['OPD_DATE'], format='%d%b%Y:%H:%M:%S')
 
-df.sort_values(by=['EVENT_NO_TRIP', 'TIMESTAMP', 'VEHICLE_ID'], inplace=True)
+# Extract day of the week
+bus_data['DAY_OF_WEEK'] = bus_data['DATE_UPDATED'].dt.dayofweek
 
-df['SPEED'] = df.groupby('EVENT_NO_TRIP')['METERS'].diff() / df.groupby('EVENT_NO_TRIP')['ACT_TIME'].diff()
+# Map day of the week to name
+name_of_days = {0: 'Weekday', 1: 'Weekday', 2: 'Weekday', 3: 'Weekday', 4: 'Weekday', 5: 'Saturday', 6: 'Sunday'}
+bus_data['DAY_NAME'] = bus_data['DAY_OF_WEEK'].map(name_of_days)
+bus_data.drop('OPD_DATE', axis=1, inplace=True)
 
-# Backfill to handle the first record of each trip
-df['SPEED'] = df['SPEED'].fillna(method='bfill')
+print("\n converted tmestamp an ddropped opd_date\n")
+print(bus_data)
 
-df['SPEED'] = df['SPEED'].clip(lower=0)  # No negative speeds
+bus_data.sort_values(by=['EVENT_NO_TRIP', 'TIMESTAMP', 'VEHICLE_ID'], inplace=True)
+print("\nsorted by trip, time and vehicle id\n")
+bus_data=bus_data.reset_index(drop=True)
+print(bus_data)
 
-df['GPS_LATITUDE'] = df['GPS_LATITUDE'].fillna(0.0)
+print("\nCalculate and add speed\n")
+bus_data['SPEED'] = bus_data.groupby('EVENT_NO_TRIP')['METERS'].diff() /bus_data.groupby('EVENT_NO_TRIP')['ACT_TIME'].diff()
+# # Count the number of NaN values in the SPEED column
+# number_of_nan = bus_data['SPEED'].isna().sum()
 
-df['GPS_LONGITUDE'] = df['GPS_LONGITUDE'].fillna(0.0)
+# # Print the result=>all new trips so set Nan to zero
+# print(f"Number of NaN values in SPEED: {number_of_nan}")
+# def print_surrounding_rows(df, column_name, window=2):
+#   """
+#   Prints the immediate window rows surrounding each NaN value in a column.
 
-#Data Validation
+#   Args:
+#       df (pandas.DataFrame): The DataFrame to analyze.
+#       column_name (str): The name of the column to check for NaN values.
+#       window (int, optional): The number of rows before and after the NaN value to print. Defaults to 2.
+#   """
+#   for index, row in df.iterrows():
+#     if pd.isna(row[column_name]):
+#       # Get starting and ending indices for surrounding rows
+#       start_index = max(0, index - window)
+#       end_index = min(index + window + 1, len(df))
+#       # Print surrounding rows
+#       print(f"\nRow {index} (NaN):")
+#       print(df.iloc[start_index:end_index])
 
-validate_data(df)
+# # Apply the function to bus_data
+# print_surrounding_rows(bus_data.copy(), 'SPEED', window=2)
+bus_data['SPEED'] = bus_data['SPEED'].fillna(0)  # Replace all NaN values with 0
+bus_data['SPEED'] = bus_data['SPEED'].round(3)
+print(bus_data)
+bus_data['SPEED'] = bus_data['SPEED'].clip(lower=0)  # No negative speeds
 
-def validate_stop_data(df):
-    #rm dups
-   # df.drop_duplicates(inplace=True)
-    # Remove duplicates while keeping the first occurrence of each trip_id
-    df = df.sort_values(by='trip_id').drop_duplicates(subset='trip_id', keep='first')
-    df = df.reset_index(drop=True)
-    return df
+bus_data = bus_data.dropna(subset=['GPS_LATITUDE', 'GPS_LONGITUDE'])
+#drop nan lat/long
+#bus_data = bus_data[['TIMESTAMP', 'GPS_LATITUDE', 'GPS_LONGITUDE', 'SPEED', 'EVENT_NO_TRIP, DAY_OF_WEEK, DAY_NAME']].rename(
+   # columns={'TIMESTAMP': 'tstamp', 'GPS_LATITUDE': 'latitude', 'GPS_LONGITUDE': 'longitude', 'SPEED': 'speed', 'EVENT_NO_TRIP': 'trip_id', 'DAY_OF_WEEK': 'day_of_week', 'DAY_NAME':'day_name'})
+print(bus_data)
+desired_columns = ['TIMESTAMP', 'GPS_LATITUDE', 'GPS_LONGITUDE', 'SPEED', 'EVENT_NO_TRIP', 'DAY_OF_WEEK', 'DAY_NAME']
+bus_data=bus_data[desired_columns]
+print(bus_data)
+column_renaming = {'TIMESTAMP': 'tstamp',
+                   'GPS_LATITUDE': 'latitude',
+                   'GPS_LONGITUDE': 'longitude',
+                   'SPEED': 'speed',
+                   'EVENT_NO_TRIP': 'trip_id',  
+                   'DAY_OF_WEEK': 'day_of_week',
+                   'DAY_NAME': 'day_name'}
 
-stop_data=validate_stop_data(stop_data)
-
-print(stop_data)
-
-# Add dummy columns with default value
-result_df['ROUTE_ID'] = 0
-result_df['DIRECTION'] = 'Undefined'
-
-# Select only required columns and rename them
-df_trip = stop_data
-#result_df[['EVENT_NO_TRIP', 'ROUTE_ID', 'VEHICLE_ID', 'DAY_NAME', 'DIRECTION']].rename(    columns={'EVENT_NO_TRIP': 'trip_id', 'ROUTE_ID': 'route_id', 'VEHICLE_ID': 'vehicle_id', 'DAY_NAME': 'service_key', 'DIRECTION': 'direction'})
-# Select only required columns and rename them
-df_breadcrumb = df[['TIMESTAMP', 'GPS_LATITUDE', 'GPS_LONGITUDE', 'SPEED', 'EVENT_NO_TRIP']].rename(
-    columns={'TIMESTAMP': 'tstamp', 'GPS_LATITUDE': 'latitude', 'GPS_LONGITUDE': 'longitude', 'SPEED': 'speed', 'EVENT_NO_TRIP': 'trip_id'})
-
-# Assuming you have a DataFrame called df with columns: 'TIMESTAMP', 'SPEED', and 'VEHICLE_ID'
-
-# Create a new column for the day of the week
-df_breadcrumb['day_of_week'] = df['TIMESTAMP'].dt.dayofweek
-
-# Map day of the week to 'Weekday' or 'Weekend'
-df_breadcrumb['day_type'] = df['DAY_OF_WEEK'].map({0: 'Weekend', 1: 'Weekday', 2: 'Weekday', 3: 'Weekday', 4: 'Weekday', 5: 'Weekday', 6: 'Weekend'})
+# Rename the columns in bus_data
+bus_data = bus_data.rename(columns=column_renaming)
+print(bus_data)
 
 
 # Establish a connection to the database
@@ -230,9 +205,8 @@ CREATE TABLE IF NOT EXISTS breadcrumb (
     latitude FLOAT,
     longitude FLOAT,
     speed FLOAT,
-    day_of_week VARCHAR(255),
-    day_type VARCHAR(255),
     trip_id VARCHAR(255),
+    FOREIGN KEY (trip_id) REFERENCES trip(trip_id)
 );
 """
 
@@ -251,7 +225,34 @@ def create_tables(conn):
 
 create_tables(conn)
 
+# def copy_from_trip(conn, df):
+#     buffer = StringIO()
+#     df.to_csv(buffer, index=False, header=False)
+#     buffer.seek(0)
+
+#     cursor = conn.cursor()
+#     try:
+#         cursor.copy_from(buffer, 'trip', sep=",")
+#         conn.commit()
+#     except (Exception, psycopg2.DatabaseError) as error:
+#         print("Error: %s" % error)
+#         conn.rollback()
+#         cursor.close()
+#         return 1
+#     print("Loading of Trip table done")
+#     cursor.close()
 def copy_from_trip(conn, df):
+    # Check for duplicates in 'trip_id' before copying
+    duplicate_trip_ids = df[df['trip_id'].duplicated()]
+
+    if not duplicate_trip_ids.empty:
+        print("Warning: Duplicate 'trip_id' values found in DataFrame:")
+        print(duplicate_trip_ids)
+        # Optionally filter out duplicates before copying
+        # df = df.drop(duplicate_trip_ids.index)  # Uncomment to filter duplicates
+
+    # ... rest of the code for copying data (assuming no duplicates)
+
     buffer = StringIO()
     df.to_csv(buffer, index=False, header=False)
     buffer.seek(0)
@@ -268,12 +269,20 @@ def copy_from_trip(conn, df):
     print("Loading of Trip table done")
     cursor.close()
 
-def copy_from_breadcrumb(conn, df):
-       
-    # save dataframe to an in memory buffer
-    buffer = StringIO()
 
-    df.to_csv(buffer, index=False, header=False)
+def copy_from_breadcrumb(conn, df, stop_data):
+    # Validate 'trip_id' references using stop_data (optional)
+    if stop_data is not None:
+        valid_trip_ids = set(stop_data['trip_id'].unique())
+        filtered_df = df[df['trip_id'].isin(valid_trip_ids)]
+    else:
+        # If stop_data is not provided, assume validation elsewhere
+        filtered_df = df  # No filtering here
+
+    # ... rest of the code for copying data (using filtered_df)
+
+    buffer = StringIO()
+    filtered_df.to_csv(buffer, index=False, header=False)
     buffer.seek(0)
 
     cursor = conn.cursor()
@@ -287,6 +296,92 @@ def copy_from_breadcrumb(conn, df):
         return 1
     print("Loading of breadcrumb table done")
     cursor.close()
+# def copy_from_breadcrumb(conn, df):
+       
+#     # save dataframe to an in memory buffer
+#     buffer = StringIO()
 
-copy_from_trip(conn, df_trip)
-copy_from_breadcrumb(conn, df_breadcrumb)
+#     df.to_csv(buffer, index=False, header=False)
+#     buffer.seek(0)
+
+#     cursor = conn.cursor()
+#     try:
+#         cursor.copy_from(buffer, 'breadcrumb', sep=",")
+#         conn.commit()
+#     except (Exception, psycopg2.DatabaseError) as error:
+#         print("Error: %s" % error)
+#         conn.rollback()
+#         cursor.close()
+#         return 1
+#     print("Loading of breadcrumb table done")
+#     cursor.close()
+
+
+print("Columns in stop_data:")
+print(stop_data.columns)
+
+print("\nColumns in bus_data:")
+print(bus_data.columns)
+
+
+
+def validate_trip_ids(bus_data, stop_data):
+    bus_trip_ids = bus_data['trip_id'].unique()
+    stop_trip_ids = stop_data['trip_id'].unique()
+    
+    # Find trip_ids in bus_data not present in stop_data
+    missing_trip_ids = set(bus_trip_ids) - set(stop_trip_ids)
+    
+    if missing_trip_ids:
+        print("The following 'trip_id's in bus_data are missing in stop_data:")
+        print(missing_trip_ids)
+    else:
+        print("All 'trip_id's in bus_data are present in stop_data.")
+    
+    # Find trip_ids that are present in both bus_data and stop_data
+    matching_trip_ids = set(bus_trip_ids) & set(stop_trip_ids)
+    
+    if matching_trip_ids:
+        print("The following 'trip_id's are present in both bus_data and stop_data:")
+        print(matching_trip_ids)
+    else:
+        print("No matching 'trip_id's found in bus_data and stop_data.")
+
+
+validate_trip_ids(bus_data, stop_data)
+
+def filter_bus_data(bus_data, stop_data):
+    stop_trip_id=set(stop_data['trip_id'].unique())
+    filtered_bus_data=bus_data[bus_data['trip_id'].isin(stop_trip_id)]
+    return filtered_bus_data
+
+filtered_bus_data=filter_bus_data(bus_data, stop_data)
+validate_trip_ids(filtered_bus_data, stop_data)
+def remove_duplicate_trip_ids(stop_data):
+    stop_data = stop_data.drop_duplicates(subset='trip_id', keep='first')
+    return stop_data
+
+stop_data = remove_duplicate_trip_ids(stop_data)
+
+duplicate_trip_ids = stop_data[stop_data.duplicated(subset='trip_id', keep=False)]
+
+# Print duplicate 'trip_id' values
+if not duplicate_trip_ids.empty:
+    print("\nDuplicate 'trip_id' values found:")
+    print(duplicate_trip_ids['trip_id'].value_counts())
+else:
+    print("\nNo duplicate 'trip_id' values found.\n")
+
+filtered_bus_data = bus_data.drop(columns=['day_of_week', 'day_name'])
+print("Columns in stop_data:")
+print(filtered_bus_data.columns)
+
+print("\nColumns in filtered bus_data:")
+print(filtered_bus_data.columns)
+weekday_mask = filtered_bus_data['trip_id'] == "weekday"
+number_of_weekday_rows = weekday_mask.sum()
+
+print(f"Number of rows with 'weekday' in trip_id: {number_of_weekday_rows}")
+filter_bus_data= filtered_bus_data.drop(weekday_mask.index)
+copy_from_trip(conn, stop_data)
+copy_from_breadcrumb(conn, filtered_bus_data,stop_data)
